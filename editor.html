@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CYBER-BREACH // DECK_EDITOR</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="crt-overlay" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+
+<div class="editor-shell">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="sim-title">CYBER-BREACH <span class="divider">//</span> DECK_EDITOR</span>
+    </div>
+    <div class="topbar-center">
+      <span class="sector-label">QUESTIONS</span>
+      <span id="questionCount" class="sector-value">00</span>
+    </div>
+    <div class="topbar-right">
+      <a class="icon-btn" href="index.html">BACK TO DUEL</a>
+      <button id="logoutBtn" class="icon-btn">LOG OUT</button>
+      <button id="newQuestionBtn" class="icon-btn accent-btn">+ NEW QUESTION</button>
+    </div>
+  </header>
+
+  <main class="editor-main">
+    <div class="empty-state" id="emptyState" hidden>
+      <p>NO QUESTIONS IN THE DECK.</p>
+      <button class="modal-btn" id="emptyStateAddBtn">ADD YOUR FIRST QUESTION</button>
+    </div>
+    <div class="question-list" id="questionList"></div>
+  </main>
+
+</div>
+
+<div class="modal-overlay" id="formModal" hidden>
+  <div class="modal form-modal">
+    <h2 class="modal-title form-modal-title" id="formModalTitle">NEW QUESTION</h2>
+    <form class="editor-form" id="questionForm">
+      <div class="field-label" id="fCategoryInfo" hidden></div>
+
+      <label class="form-field">
+        <span class="field-label">QUESTION</span>
+        <textarea id="fQuestion" rows="2" placeholder="What does this question ask?"></textarea>
+      </label>
+
+      <div class="field-label options-label options-label-row">
+        <span>ANSWER OPTIONS &mdash; check all that are correct (2-8 options)</span>
+        <button type="button" class="modal-btn ghost small" id="addOptionBtn">+ ADD OPTION</button>
+      </div>
+      <div class="option-fields" id="optionFields"></div>
+
+      <label class="form-field">
+        <span class="field-label">EXPLANATION</span>
+        <textarea id="fExplanation" rows="6" placeholder="Shown to the player as the answer breakdown"></textarea>
+      </label>
+
+      <p class="form-error" id="formError" hidden></p>
+
+      <div class="form-actions">
+        <button type="button" class="modal-btn ghost" id="formCancelBtn">CANCEL</button>
+        <button type="submit" class="modal-btn" id="formSaveBtn">SAVE</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirmModal" hidden>
+  <div class="modal">
+    <h2 class="modal-title danger">DELETE QUESTION?</h2>
+    <p class="modal-sub" id="confirmMessage">This cannot be undone.</p>
+    <div class="form-actions">
+      <button class="modal-btn ghost" id="confirmCancelBtn">CANCEL</button>
+      <button class="modal-btn danger" id="confirmDeleteBtn">DELETE</button>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script>
+'use strict';
+
+const MIN_OPTIONS = 2;
+const MAX_OPTIONS = 8;
+const DEFAULT_NEW_OPTIONS = 4;
+
+const el = {
+  questionCount: document.getElementById('questionCount'),
+  questionList: document.getElementById('questionList'),
+  emptyState: document.getElementById('emptyState'),
+  newQuestionBtn: document.getElementById('newQuestionBtn'),
+  emptyStateAddBtn: document.getElementById('emptyStateAddBtn'),
+  logoutBtn: document.getElementById('logoutBtn'),
+
+  formModal: document.getElementById('formModal'),
+  formModalTitle: document.getElementById('formModalTitle'),
+  questionForm: document.getElementById('questionForm'),
+  fCategoryInfo: document.getElementById('fCategoryInfo'),
+  fQuestion: document.getElementById('fQuestion'),
+  fExplanation: document.getElementById('fExplanation'),
+  optionFields: document.getElementById('optionFields'),
+  addOptionBtn: document.getElementById('addOptionBtn'),
+  formError: document.getElementById('formError'),
+  formSaveBtn: document.getElementById('formSaveBtn'),
+  formCancelBtn: document.getElementById('formCancelBtn'),
+
+  confirmModal: document.getElementById('confirmModal'),
+  confirmMessage: document.getElementById('confirmMessage'),
+  confirmDeleteBtn: document.getElementById('confirmDeleteBtn'),
+  confirmCancelBtn: document.getElementById('confirmCancelBtn')
+};
+
+let questions = [];
+let totalCount = 0;
+let editingId = null;
+let pendingDeleteId = null;
+
+// ---------- data loading ----------
+
+async function boot() {
+  try {
+    await loadList();
+  } catch (err) {
+    // MemoqAuth.apiFetch already re-shows the login modal on a 401; anything else, leave the
+    // list empty.
+  }
+}
+
+async function loadList() {
+  const data = await MemoqAuth.apiFetch('/editor/questions?size=200&sort=questionText,asc');
+  questions = data.content;
+  totalCount = data.page.totalElements;
+  renderList();
+}
+
+// ---------- rendering ----------
+
+function renderList() {
+  el.questionCount.textContent = String(totalCount).padStart(2, '0');
+  el.emptyState.hidden = questions.length > 0;
+  el.questionList.innerHTML = '';
+
+  questions.forEach((q) => {
+    const card = document.createElement('div');
+    card.className = 'question-row';
+
+    const optionsHtml = q.options.map((opt) => {
+      return '<li class="' + (opt.correct ? 'option-correct' : '') + '">' +
+        (opt.correct ? '&#10003; ' : '&middot; ') + escapeHtml(opt.text) +
+      '</li>';
+    }).join('');
+
+    card.innerHTML =
+      '<div class="q-row-main">' +
+        '<div class="q-row-meta">' +
+          '<span class="q-category">' + escapeHtml((q.categoryName || '').toUpperCase()) + '</span>' +
+          '<span class="q-stats">' +
+            '<span class="q-stat-correct">&#10003; ' + q.correctCount + '</span>' +
+            '<span class="q-stat-incorrect">&#10007; ' + q.incorrectCount + '</span>' +
+          '</span>' +
+        '</div>' +
+        '<div class="q-row-text">' + escapeHtml(q.questionText) + '</div>' +
+        '<ul class="q-row-options">' + optionsHtml + '</ul>' +
+        '<div class="q-row-hint">EXPLANATION: ' + escapeHtml(q.explanation) + '</div>' +
+      '</div>' +
+      '<div class="q-row-actions">' +
+        '<button class="modal-btn ghost small" data-action="edit">EDIT</button>' +
+        '<button class="modal-btn ghost small" data-action="reset-stats">RESET STATS</button>' +
+        '<button class="modal-btn danger small" data-action="delete">DELETE</button>' +
+      '</div>';
+
+    card.querySelector('[data-action="edit"]').addEventListener('click', () => openForm(q));
+    card.querySelector('[data-action="delete"]').addEventListener('click', () => openConfirm(q));
+    card.querySelector('[data-action="reset-stats"]').addEventListener('click', (e) => handleResetStats(q, e.currentTarget));
+
+    el.questionList.appendChild(card);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ---------- category info (read-only — the backend assigns it via AI) ----------
+
+function renderCategoryInfo(question) {
+  if (question) {
+    el.fCategoryInfo.textContent = 'CATEGORY: ' + (question.categoryName || '').toUpperCase() +
+      ' (auto-assigned by AI — saving may reassign it)';
+    el.fCategoryInfo.hidden = false;
+  } else {
+    el.fCategoryInfo.hidden = true;
+  }
+}
+
+// ---------- answer option fields ----------
+
+function addOptionRow(text, correct) {
+  const row = document.createElement('div');
+  row.className = 'option-field-row';
+  row.innerHTML =
+    '<input type="checkbox" class="correct-checkbox"' + (correct ? ' checked' : '') + '>' +
+    '<span class="hotkey"></span>' +
+    '<textarea class="option-text-input" rows="2" placeholder="Answer option">' + escapeHtml(text || '') + '</textarea>' +
+    '<button type="button" class="modal-btn ghost small remove-option-btn">&times;</button>';
+  row.querySelector('.remove-option-btn').addEventListener('click', () => {
+    row.remove();
+    refreshOptionRowChrome();
+  });
+  el.optionFields.appendChild(row);
+}
+
+function refreshOptionRowChrome() {
+  const rows = Array.from(el.optionFields.children);
+  rows.forEach((row, i) => {
+    row.querySelector('.hotkey').textContent = '[' + (i + 1) + ']';
+    row.querySelector('.option-text-input').placeholder = 'Answer option ' + (i + 1);
+    row.querySelector('.remove-option-btn').disabled = rows.length <= MIN_OPTIONS;
+  });
+  el.addOptionBtn.disabled = rows.length >= MAX_OPTIONS;
+}
+
+function buildOptionFields(question) {
+  el.optionFields.innerHTML = '';
+  const opts = question ? question.options : Array.from({ length: DEFAULT_NEW_OPTIONS }, () => ({ text: '', correct: false }));
+  opts.forEach((opt) => addOptionRow(opt.text, opt.correct));
+  refreshOptionRowChrome();
+}
+
+function readOptionFields() {
+  const rows = Array.from(el.optionFields.children);
+  return rows.map((row) => ({
+    text: row.querySelector('.option-text-input').value.trim(),
+    correct: row.querySelector('.correct-checkbox').checked
+  }));
+}
+
+// ---------- question form modal ----------
+
+function openForm(question) {
+  editingId = question ? question.id : null;
+  el.formModalTitle.textContent = question ? 'EDIT QUESTION' : 'NEW QUESTION';
+  renderCategoryInfo(question);
+  el.fQuestion.value = question ? question.questionText : '';
+  el.fExplanation.value = question ? question.explanation : '';
+  buildOptionFields(question);
+  el.formError.hidden = true;
+  el.formError.textContent = '';
+  el.formModal.hidden = false;
+  el.fQuestion.focus();
+}
+
+function closeForm() {
+  el.formModal.hidden = true;
+  editingId = null;
+}
+
+function validateForm(payload) {
+  if (!payload.questionText) return 'Question text is required.';
+  if (!payload.explanation) return 'Explanation is required.';
+  if (payload.options.length < MIN_OPTIONS || payload.options.length > MAX_OPTIONS) {
+    return 'Questions must have between ' + MIN_OPTIONS + ' and ' + MAX_OPTIONS + ' options.';
+  }
+  if (payload.options.some((opt) => !opt.text)) {
+    return 'All answer options must have text.';
+  }
+  if (!payload.options.some((opt) => opt.correct)) {
+    return 'At least one answer option must be marked correct.';
+  }
+  return null;
+}
+
+async function handleFormSubmit(e) {
+  e.preventDefault();
+
+  const payload = {
+    questionText: el.fQuestion.value.trim(),
+    options: readOptionFields(),
+    explanation: el.fExplanation.value.trim()
+  };
+
+  const error = validateForm(payload);
+  if (error) {
+    el.formError.textContent = error;
+    el.formError.hidden = false;
+    return;
+  }
+
+  el.formSaveBtn.disabled = true;
+  try {
+    if (editingId) {
+      await MemoqAuth.apiFetch('/editor/questions/' + editingId, { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await MemoqAuth.apiFetch('/editor/questions', { method: 'POST', body: JSON.stringify(payload) });
+    }
+    closeForm();
+    await loadList();
+  } catch (err) {
+    el.formError.textContent = err.message || 'Save failed.';
+    el.formError.hidden = false;
+  } finally {
+    el.formSaveBtn.disabled = false;
+  }
+}
+
+// ---------- stats reset ----------
+
+async function handleResetStats(question, btn) {
+  btn.disabled = true;
+  try {
+    const updated = await MemoqAuth.apiFetch('/editor/questions/' + question.id + '/reset-stats', { method: 'POST' });
+    const idx = questions.findIndex((q) => q.id === question.id);
+    if (idx !== -1) questions[idx] = updated;
+    renderList();
+  } catch (err) {
+    window.alert(err.message || 'Failed to reset stats.');
+    btn.disabled = false;
+  }
+}
+
+// ---------- delete confirmation modal ----------
+
+function openConfirm(question) {
+  pendingDeleteId = question.id;
+  const preview = question.questionText.slice(0, 80) + (question.questionText.length > 80 ? '...' : '');
+  el.confirmMessage.textContent = 'Delete "' + preview + '"? This cannot be undone.';
+  el.confirmModal.hidden = false;
+}
+
+function closeConfirm() {
+  el.confirmModal.hidden = true;
+  pendingDeleteId = null;
+}
+
+async function handleConfirmDelete() {
+  if (!pendingDeleteId) return;
+  el.confirmDeleteBtn.disabled = true;
+  try {
+    await MemoqAuth.apiFetch('/editor/questions/' + pendingDeleteId, { method: 'DELETE' });
+    closeConfirm();
+    await loadList();
+  } catch (err) {
+    window.alert(err.message || 'Delete failed.');
+  } finally {
+    el.confirmDeleteBtn.disabled = false;
+  }
+}
+
+// ---------- init ----------
+
+function init() {
+  el.newQuestionBtn.addEventListener('click', () => openForm(null));
+  el.emptyStateAddBtn.addEventListener('click', () => openForm(null));
+  el.addOptionBtn.addEventListener('click', () => {
+    if (el.optionFields.children.length >= MAX_OPTIONS) return;
+    addOptionRow('', false);
+    refreshOptionRowChrome();
+  });
+  el.formCancelBtn.addEventListener('click', closeForm);
+  el.questionForm.addEventListener('submit', handleFormSubmit);
+  el.confirmCancelBtn.addEventListener('click', closeConfirm);
+  el.confirmDeleteBtn.addEventListener('click', handleConfirmDelete);
+  el.logoutBtn.addEventListener('click', () => MemoqAuth.logout());
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (!el.formModal.hidden) closeForm();
+      if (!el.confirmModal.hidden) closeConfirm();
+    }
+  });
+
+  MemoqAuth.requireAuth(boot);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CYBER-BREACH // PROTOCOL_AM_v2.4</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="no-scroll">
+<div class="crt-overlay" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+
+<div id="app" class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="sim-title">CYBER-BREACH <span class="divider">//</span> PROTOCOL_AM_v2.4</span>
+    </div>
+    <div class="topbar-center">
+      <span class="sector-label">SECTOR</span>
+      <span id="sectorProgress" class="sector-value">01 / 12</span>
+    </div>
+    <div class="topbar-right">
+      <div class="score-hud" id="scoreHud">
+        <div class="score-hud-label">SCORE</div>
+        <div class="score-hud-value" id="scoreValue">0</div>
+        <div class="score-hud-combo" id="scoreCombo" hidden>COMBO x1.0</div>
+      </div>
+      <button id="soundToggle" class="icon-btn" title="Toggle audio (stub)">SND: ON</button>
+      <a class="icon-btn" href="editor.html" title="Review and edit the question bank">DECK</a>
+      <button id="leaderboardBtn" class="icon-btn" title="View the top-10 leaderboard">LEADERBOARD</button>
+      <button id="settingsBtn" class="icon-btn" title="Game settings">SETTINGS</button>
+      <button id="resetBtn" class="icon-btn" title="Purge session">RESET</button>
+      <button id="logoutBtn" class="icon-btn" onclick="MemoqAuth.logout()">LOG OUT</button>
+    </div>
+  </header>
+
+  <section class="am-zone">
+    <div class="am-avatar-wrap">
+      <div id="amAvatar" class="am-avatar" data-state="idle">
+        <img src="am-avatar.jpg" alt="AM" class="am-img">
+      </div>
+    </div>
+    <div class="am-info">
+      <div class="am-name">A.M. <span class="am-subtitle">// Adversarial Mentor</span></div>
+      <div class="hp-bar am-hp-bar">
+        <div id="amHpFill" class="hp-fill am-hp-fill"></div>
+        <span id="amHpText" class="hp-text">2000 / 2000</span>
+      </div>
+      <div class="am-firewall-bar" id="amFirewallBar" hidden>
+        <div class="am-firewall-label">A.M. FIREWALL SHIELD</div>
+        <div class="hp-bar am-firewall-shield-bar">
+          <div id="amFirewallFill" class="hp-fill am-firewall-fill"></div>
+          <span id="amFirewallText" class="hp-text">100%</span>
+        </div>
+      </div>
+      <div class="speech-bubble" id="amSpeech">
+        <span id="amSpeechText"></span><span class="cursor">&#9611;</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="battlefield">
+    <div class="question-card" id="questionCard">
+      <div class="question-meta">
+        <span class="q-category" id="qCategory">NETWORKING</span>
+        <span class="q-timer" id="qTimer" hidden>02:00</span>
+      </div>
+      <div class="question-text" id="qText">INITIALIZING...</div>
+      <div class="question-hint" id="qHint" hidden></div>
+    </div>
+    <div class="log-terminal">
+      <div class="log-header">LOG_TERMINAL</div>
+      <div class="log-body" id="logBody"></div>
+      <form class="log-input-row" id="amChatForm">
+        <span class="log-input-prefix">&gt;</span>
+        <input type="text" id="amChatInput" class="log-input" placeholder="ASK AM ABOUT THIS QUESTION..." autocomplete="off" maxlength="500">
+        <button type="submit" class="log-input-submit" id="amChatSubmit" title="Send">SEND</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="player-rig">
+    <div class="player-status">
+      <div class="hp-bar player-hp-bar">
+        <div id="playerHpFill" class="hp-fill player-hp-fill"></div>
+        <span id="playerHpText" class="hp-text">1000 / 1000</span>
+      </div>
+      <div class="ram-track" id="ramTrack"></div>
+      <div class="combo-indicator" id="comboIndicator">COMBO x0</div>
+    </div>
+    <div class="answer-grid" id="answerGrid"></div>
+    <div class="multi-select-actions" id="multiSelectActions" hidden>
+      <span class="multi-select-hint">SELECT ALL THAT APPLY</span>
+      <button class="modal-btn" id="submitAnswersBtn" disabled>SUBMIT</button>
+    </div>
+    <div class="round-actions" id="roundActions" hidden>
+      <button class="modal-btn" id="nextBtn">NEXT SECTOR &raquo;</button>
+    </div>
+  </section>
+
+  <section class="intel-deck" id="intelDeck" hidden>
+    <div class="intel-deck-label">INTEL CARDS &mdash; match the rationale to the wrong answer it exposes</div>
+    <div class="rationale-cards" id="rationaleCards"></div>
+  </section>
+
+  <section class="utility-deck">
+    <button class="hint-btn" id="hintBtn">
+      <span class="util-key">[SPACE]</span>
+      <span class="util-title">DEAL WITH AM</span>
+      <span class="util-sub">HINT &middot; -35 HP</span>
+    </button>
+    <div class="utility-cards" id="utilityCards"></div>
+  </section>
+
+</div>
+
+<div class="modal-overlay" id="explanationModal" hidden>
+  <div class="modal form-modal">
+    <h2 class="modal-title form-modal-title">CORRECT ANSWER &mdash; EXPLAINED</h2>
+    <p class="modal-sub" id="explanationText"></p>
+    <div class="form-actions">
+      <button class="modal-btn" id="explanationCloseBtn">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="roundSetupModal" hidden>
+  <div class="modal form-modal">
+    <h2 class="modal-title form-modal-title">AM: STATE YOUR TERMS</h2>
+    <p class="modal-sub">How many sectors will you attempt, meatspace unit?</p>
+    <form class="editor-form" id="roundSetupForm">
+      <label class="form-field">
+        <span class="field-label">SECTORS (1&ndash;<span id="roundSetupMax">0</span>)</span>
+        <input type="number" id="roundSetupCount" min="1" value="1">
+      </label>
+      <p class="form-error" id="roundSetupError" hidden></p>
+      <div class="form-actions">
+        <button type="submit" class="modal-btn" id="roundSetupSubmit">BEGIN BREACH</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="victoryModal" hidden>
+  <div class="modal">
+    <h1 class="modal-title victory">VICTORY // SYSTEM OVERRIDE</h1>
+    <p class="modal-sub">AM core breached. Certification protocol complete.</p>
+    <label class="form-field score-save-field">
+      <span class="field-label">ENTER HANDLE</span>
+      <input type="text" id="victoryHandleInput" maxlength="12" value="PLAYER">
+    </label>
+    <div class="form-actions">
+      <button class="modal-btn ghost" id="victorySaveScoreBtn">SAVE SCORE</button>
+      <button class="modal-btn" id="victoryRestart">RESTART SIMULATION</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="defeatModal" hidden>
+  <div class="modal">
+    <h1 class="modal-title defeat">DEFEAT // USER PURGED</h1>
+    <p class="modal-sub">Connection terminated by AM. Session lost.</p>
+    <label class="form-field score-save-field">
+      <span class="field-label">ENTER HANDLE</span>
+      <input type="text" id="defeatHandleInput" maxlength="12" value="PLAYER">
+    </label>
+    <div class="form-actions">
+      <button class="modal-btn ghost" id="defeatSaveScoreBtn">SAVE SCORE</button>
+      <button class="modal-btn" id="defeatRestart">RETRY CONNECTION</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="leaderboardModal" hidden>
+  <div class="modal form-modal leaderboard-modal">
+    <h2 class="modal-title form-modal-title">TOP OPERATORS</h2>
+    <div class="leaderboard-header">
+      <span></span><span></span><span>HANDLE</span><span>SCORE</span><span>ACC</span><span>SECTORS</span><span>DATE</span>
+    </div>
+    <div class="leaderboard-rows" id="leaderboardRows"></div>
+    <div class="form-actions">
+      <button class="modal-btn" id="leaderboardCloseBtn">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settingsModal" hidden>
+  <div class="modal form-modal">
+    <h2 class="modal-title form-modal-title">SETTINGS</h2>
+    <div class="editor-form">
+      <label class="form-field form-field-row">
+        <input type="checkbox" id="settingsTimerEnabled" class="settings-checkbox">
+        <span class="field-label">ENABLE QUESTION TIMER</span>
+      </label>
+      <label class="form-field">
+        <span class="field-label">TIMER DURATION (SECONDS)</span>
+        <input type="number" id="settingsTimerSeconds" min="10" max="600" step="5">
+      </label>
+      <label class="form-field form-field-row">
+        <input type="checkbox" id="settingsRephraseEnabled" class="settings-checkbox">
+        <span class="field-label">REPHRASE QUESTIONS (AI)</span>
+      </label>
+      <div class="form-actions">
+        <button type="button" class="modal-btn ghost" id="settingsCancelBtn">CANCEL</button>
+        <button type="button" class="modal-btn" id="settingsSaveBtn">SAVE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="floating-layer" id="floatingLayer" aria-hidden="true"></div>
+
+<script src="questions-data.js"></script>
+<script src="api.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>MemoqAuth.requireAuth(init);</script>
+</body>
+</html>
