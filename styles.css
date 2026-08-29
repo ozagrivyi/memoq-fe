@@ -931,7 +931,21 @@ button {
   border-color: var(--cyan);
 }
 
+/* Ambient "this is still playable" glow for any Intel Card the player hasn't used yet --
+   without it, an unplayed card looked identical to the flat resting style of everything else and
+   was easy to miss/forget about. Matched/corrupted/locked cards have their own distinct styling
+   below (steady, not pulsing) since those are no longer actionable. */
+.rationale-card:not(.matched):not(.corrupted):not(.locked) {
+  animation: intel-available-pulse 2s ease-in-out infinite;
+}
+
+@keyframes intel-available-pulse {
+  0%, 100% { border-color: var(--border-dim); box-shadow: none; }
+  50% { border-color: var(--cyan); box-shadow: 0 0 10px rgba(0, 240, 255, 0.45); }
+}
+
 .rationale-card.held {
+  animation: none;
   border-color: var(--cyan);
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
